@@ -1,0 +1,11 @@
+[Unit]
+Description=shippo - auto serve localhost ports via Tailscale
+
+[Service]
+ExecStart=%h/bin/shippo
+Restart=always
+RestartSec=2
+AmbientCapabilities=CAP_BPF CAP_NET_ADMIN CAP_SYS_PTRACE CAP_PERFMON
+
+[Install]
+WantedBy=default.target

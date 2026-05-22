@@ -1,0 +1,13 @@
+# build output
+shippo
+
+# bpf2go generated files
+internal/daemon/shippo_*_bpfel.go
+internal/daemon/shippo_*_bpfel.o
+
+# generated from kernel BTF (run `make vmlinux` to regenerate)
+internal/daemon/bpf/vmlinux.h
+
+# tailscale cert files
+*.crt
+*.key
