@@ -2,22 +2,17 @@
 
 package main
 
-import (
-	"unsafe"
-
-	"github.com/boratanrikulu/gobee/bpf"
-)
+import "github.com/boratanrikulu/gobee/bpf"
 
 //bpf:license GPL
 
 const (
-	afInet       = uint16(2)
-	afInet6      = uint16(10)
-	ipProtoTCP   = uint16(6)
-	tcpListen    = int32(10)
-	actionStart  = uint8(0)
-	actionStop   = uint8(1)
-	traceCtxSize = uint32(72)
+	afInet      = uint16(2)
+	afInet6     = uint16(10)
+	ipProtoTCP  = uint16(6)
+	tcpListen   = int32(10)
+	actionStart = uint8(0)
+	actionStop  = uint8(1)
 )
 
 // InetSockSetStateCtx mirrors trace_event_raw_inet_sock_set_state.
@@ -72,22 +67,16 @@ func emitEvent(tp *InetSockSetStateCtx, action uint8) {
 }
 
 //bpf:section tracepoint/sock/inet_sock_set_state
-func OnInetSockSetState(ctx *bpf.TracepointCtx) bpf.TpReturn {
-	var tp InetSockSetStateCtx
-	err := bpf.ProbeReadKernel(unsafe.Pointer(&tp), traceCtxSize, unsafe.Pointer(ctx))
-	if err < 0 {
+func OnInetSockSetState(ctx *InetSockSetStateCtx) bpf.TpReturn {
+	if ctx.Protocol != ipProtoTCP {
 		return bpf.TpOk
 	}
-
-	if tp.Protocol != ipProtoTCP {
+	if ctx.Newstate == tcpListen {
+		emitEvent(ctx, actionStart)
 		return bpf.TpOk
 	}
-	if tp.Newstate == tcpListen {
-		emitEvent(&tp, actionStart)
-		return bpf.TpOk
-	}
-	if tp.Oldstate == tcpListen {
-		emitEvent(&tp, actionStop)
+	if ctx.Oldstate == tcpListen {
+		emitEvent(ctx, actionStop)
 		return bpf.TpOk
 	}
 
