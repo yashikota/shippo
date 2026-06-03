@@ -6,11 +6,8 @@ eBPF を使ってイベント駆動で localhost の LISTEN ポートを検出�
 
 ```txt
 ┌─────────────────────────────────────────────────┐
-│  eBPF kprobe: inet_csk_listen_start             │
-│  → LISTEN 開始を ring buffer で即時通知          　│
-├─────────────────────────────────────────────────┤
-│  eBPF kprobe: tcp_set_state                     │
-│  → LISTEN 終了を ring buffer で即時通知          　│
+│  eBPF tracepoint: sock/inet_sock_set_state      │
+│  → LISTEN 開始・終了を ring buffer で即時通知      │
 └──────────────────┬──────────────────────────────┘
                    │
                    ▼
@@ -21,7 +18,7 @@ eBPF を使ってイベント駆動で localhost の LISTEN ポートを検出�
 └─────────────────────────────────────────────────┘
 ```
 
-- ポーリングなし。eBPF kprobe による純粋なイベント駆動。
+- ポーリングなし。eBPF tracepoint による純粋なイベント駆動。
 - 許可リストにあるポートだけ公開。DB や管理用サーバーが意図せず公開されることはない。
 - URL は `https://<マシン名>.<tailnet>:<PORT>` で公開される。
 - 設定ファイル変更は fsnotify で即座に反映される。
@@ -30,17 +27,17 @@ eBPF を使ってイベント駆動で localhost の LISTEN ポートを検出�
 
 - Linux kernel 5.8+
 - Go 1.21+
-- clang/llvm（eBPF コンパイル用）
-- bpftool（vmlinux.h 生成用）
+- clang/llvm と libbpf headers（eBPF コンパイル用）
 - Tailscale（インストール・認証済み）
 
 ## ビルド
 
 ```bash
-sudo apt install clang llvm   # 未インストールの場合
-make vmlinux                  # vmlinux.h を生成（初回のみ）
+sudo apt install clang llvm libbpf-dev   # 未インストールの場合
 make build
 ```
+
+`make build` は `gobee` で eBPF Go source を変換してから BPF object をコンパイルする。
 
 ## 使い方
 
@@ -148,7 +145,7 @@ SHIPPO_PORTS='*' sudo ./shippo  # 全ポート許可
 │   ├── monitor.go               # eBPF ロード・イベント受信
 │   ├── reconcile.go             # serve/unserve 判定
 │   ├── serve.go                 # tailscale コマンド実行
-│   └── bpf/shippo.c             # eBPF C コード
+│   └── bpf/src/shippo.go        # gobee eBPF Go コード
 ├── testserver/                  # テスト用 localhost サーバー
 ├── Makefile
 └── shippo.service               # systemd user service
@@ -156,9 +153,8 @@ SHIPPO_PORTS='*' sudo ./shippo  # 全ポート許可
 
 ## 権限
 
-eBPF kprobe には特権が必要。systemd service では `AmbientCapabilities` で付与：
+eBPF tracepoint には特権が必要。systemd service では `AmbientCapabilities` で付与：
 
 - `CAP_BPF` – BPF プログラムのロード
 - `CAP_PERFMON` – ring buffer の使用
 - `CAP_NET_ADMIN` – ネットワーク関連の BPF 操作
-- `CAP_SYS_PTRACE` – kprobe のアタッチ
