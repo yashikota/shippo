@@ -4,7 +4,7 @@ package main
 
 import "github.com/boratanrikulu/gobee/bpf"
 
-//bpf:license GPL
+//bpf:license MIT
 
 const (
 	afInet      = uint16(2)
