@@ -6,11 +6,8 @@ A daemon that automatically exposes localhost LISTEN ports via `tailscale serve`
 
 ```txt
 ┌─────────────────────────────────────────────┐
-│  eBPF kprobe: inet_listen                   │
-│  → Detects LISTEN start via ring buffer     │
-├─────────────────────────────────────────────┤
-│  eBPF kprobe: tcp_set_state                 │
-│  → Detects LISTEN stop via ring buffer      │
+│  eBPF tracepoint: sock/inet_sock_set_state  │
+│  → Detects LISTEN start/stop via ring buffer│
 └──────────────────┬──────────────────────────┘
                    │
                    ▼
@@ -21,7 +18,7 @@ A daemon that automatically exposes localhost LISTEN ports via `tailscale serve`
 └─────────────────────────────────────────────┘
 ```
 
-- **No polling.** Pure event-driven using eBPF kprobes.
+- **No polling.** Pure event-driven using an eBPF tracepoint.
 - **Only allowed ports** are exposed. No accidental DB or admin service leaks.
 - Ports are served at `https://<machine>.<tailnet>/p<PORT>`.
 
@@ -29,15 +26,17 @@ A daemon that automatically exposes localhost LISTEN ports via `tailscale serve`
 
 - Linux kernel 5.8+
 - Go 1.21+
-- clang/llvm (for eBPF compilation)
+- clang/llvm and libbpf headers (for eBPF compilation)
 - Tailscale installed and authenticated
 
 ## Build
 
 ```bash
-sudo apt install clang llvm  # if not already installed
+sudo apt install clang llvm libbpf-dev  # if not already installed
 make build
 ```
+
+`make build` runs `gobee` to translate the eBPF Go source before compiling the BPF object.
 
 ## Usage
 
@@ -84,12 +83,11 @@ If neither is set, defaults to `3000, 5173, 8000`.
 
 ## Capabilities
 
-eBPF kprobes require elevated privileges. The systemd service uses `AmbientCapabilities`:
+eBPF tracepoints require elevated privileges. The systemd service uses `AmbientCapabilities`:
 
 - `CAP_BPF` – load BPF programs
 - `CAP_PERFMON` – use ring buffer
 - `CAP_NET_ADMIN` – network BPF operations
-- `CAP_SYS_PTRACE` – attach kprobes
 
 ## License
 

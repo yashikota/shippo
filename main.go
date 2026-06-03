@@ -261,5 +261,5 @@ func checkCapabilities() error {
 		}
 	}
 
-	return fmt.Errorf("insufficient privileges: run as root or with CAP_BPF+CAP_NET_ADMIN+CAP_PERFMON+CAP_SYS_PTRACE")
+	return fmt.Errorf("insufficient privileges: run as root or with CAP_BPF+CAP_NET_ADMIN+CAP_PERFMON")
 }

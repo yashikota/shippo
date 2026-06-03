@@ -1,12 +1,11 @@
 # build output
 shippo
 
-# bpf2go generated files
-internal/daemon/shippo_*_bpfel.go
-internal/daemon/shippo_*_bpfel.o
-
-# generated from kernel BTF (run `make vmlinux` to regenerate)
-internal/daemon/bpf/vmlinux.h
+# gobee generated files
+internal/daemon/bpf/shippo_bindings.go
+internal/daemon/bpf/src/*.bpf.c
+internal/daemon/bpf/src/*.bpf.c.map
+internal/daemon/bpf/bin/
 
 # tailscale cert files
 *.crt

@@ -33,6 +33,7 @@ func TestEventIsLocalhost_IPv6(t *testing.T) {
 		want bool
 	}{
 		{"::1", [4]uint32{0, 0, 0, 1}, true},
+		{"::1 (raw network order)", [4]uint32{0, 0, 0, 0x01000000}, true},
 		{"::", [4]uint32{0, 0, 0, 0}, false},
 		{"not loopback", [4]uint32{0, 0, 0, 2}, false},
 		{"fe80::1", [4]uint32{0x000080fe, 0, 0, 1}, false},
