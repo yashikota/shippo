@@ -32,6 +32,8 @@ func TestInitSelections(t *testing.T) {
 		{"no default selections", []int{3000}, "\n\ny\n", []string{}},
 		{"empty config", nil, "\ny\n", []string{}},
 		{"explicit wildcard", nil, "*\ny\n", []string{"*"}},
+		{"wildcard from candidates", []int{3000, 5173}, "*\ny\n", []string{"*"}},
+		{"wildcard replaces individual selections", []int{3000, 5173}, "1\n*,4000\ny\n", []string{"*"}},
 		{"invalid candidate retried", []int{3000, 5173}, "3\n1,2\n\ny\n", []string{"3000", "5173"}},
 		{"invalid manual input retried", nil, "4000,nope\n0\n65536\n100-50\n4000\ny\n", []string{"4000"}},
 	} {

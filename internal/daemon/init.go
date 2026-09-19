@@ -55,7 +55,7 @@ func initConfig(input io.Reader, output io.Writer, ports []int) error {
 			fmt.Fprintf(output, "  %d) %d\n", i+1, port)
 		}
 		for {
-			line, err := ask("Select candidate numbers, separated by commas (Enter: none): ")
+			line, err := ask("Select candidate numbers, separated by commas (*: all ports, Enter: none): ")
 			if err != nil {
 				return err
 			}
@@ -71,7 +71,7 @@ func initConfig(input io.Reader, output io.Writer, ports []int) error {
 		fmt.Fprintln(output, "No localhost ports are currently listening.")
 	}
 
-	for {
+	for !slices.Contains(raw, "*") {
 		line, err := ask("Additional ports or ranges, separated by commas (*: all, Enter: none): ")
 		if err != nil {
 			return err
@@ -93,6 +93,7 @@ func initConfig(input io.Reader, output io.Writer, ports []int) error {
 	if len(raw) == 0 {
 		allowed = "none"
 	} else if slices.Contains(raw, "*") {
+		raw = []string{"*"}
 		allowed = "ALL localhost ports (*)"
 	}
 	fmt.Fprintf(output, "Allowed ports: %s\nConfig: %s\n", allowed, path)
@@ -113,6 +114,9 @@ func initConfig(input io.Reader, output io.Writer, ports []int) error {
 }
 
 func selectPorts(line string, ports []int) ([]string, error) {
+	if line == "*" {
+		return []string{"*"}, nil
+	}
 	var selected []string
 	if line == "" {
 		return selected, nil

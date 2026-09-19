@@ -50,7 +50,8 @@ sudo ~/bin/shippo
 The default installation directory is `~/bin`. If it is on your `PATH`, use
 `shippo init`. Initialization requires no root privileges. It lists currently
 listening localhost ports, lets you select candidate numbers, and accepts other
-ports or ranges. Nothing is preselected. Review the allowlist and answer `y` to
+ports or ranges. Enter `*` at either selection prompt to allow all localhost
+ports, including servers started later. Nothing is preselected. Review the allowlist and answer `y` to
 save it; Enter at the confirmation prompt cancels without changing the config.
 Use `shippo --config <path> init` to choose another config location. Running init
 again replaces the allowlist only after confirmation. Unset `SHIPPO_PORTS` first
