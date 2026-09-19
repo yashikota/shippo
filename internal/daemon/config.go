@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -200,22 +201,28 @@ func realUserHome() string {
 }
 
 func loadConfigFile() ([]portMatcher, []string) {
+	matchers, raw, _ := readConfigFile()
+	return matchers, raw
+}
+
+func readConfigFile() ([]portMatcher, []string, error) {
 	path := configFilePath()
 	if path == "" {
-		return nil, nil
+		return nil, nil, os.ErrNotExist
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, nil
+		return nil, nil, err
 	}
 
 	var cf configFile
 	if err := json.Unmarshal(data, &cf); err != nil {
-		return nil, nil
+		return nil, nil, err
 	}
 
-	return parsePortSpecs(strings.Join(cf.Ports, ","))
+	matchers, raw := parsePortSpecs(strings.Join(cf.Ports, ","))
+	return matchers, raw, nil
 }
 
 func saveConfigFile(config *Config) error {
@@ -261,7 +268,7 @@ func chownToRealUser(path string) {
 }
 
 // watchConfig uses fsnotify to watch the config file for changes and reloads automatically.
-func watchConfig(config *Config, reconciler *Reconciler) {
+func watchConfig(ctx context.Context, config *Config, reconciler *Reconciler) {
 	path := configFilePath()
 	if path == "" {
 		return
@@ -278,6 +285,7 @@ func watchConfig(config *Config, reconciler *Reconciler) {
 		log.Printf("cannot create config watcher: %v", err)
 		return
 	}
+	defer watcher.Close()
 
 	if err := watcher.Add(dir); err != nil {
 		log.Printf("cannot watch config dir: %v", err)
@@ -290,6 +298,8 @@ func watchConfig(config *Config, reconciler *Reconciler) {
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case event, ok := <-watcher.Events:
 			if !ok {
 				return
@@ -301,8 +311,8 @@ func watchConfig(config *Config, reconciler *Reconciler) {
 				continue
 			}
 
-			matchers, raw := loadConfigFile()
-			if matchers == nil {
+			matchers, raw, err := readConfigFile()
+			if err != nil {
 				continue
 			}
 

@@ -37,8 +37,9 @@ func getMachineName() string {
 	return machineName
 }
 
-func serve(port int) {
-	target := fmt.Sprintf("http://127.0.0.1:%d", port)
+func serve(port int) error {
+	// localhost lets the proxy reach IPv4-only and IPv6-only listeners.
+	target := fmt.Sprintf("http://localhost:%d", port)
 	httpsPort := fmt.Sprintf("%d", port)
 	url := fmt.Sprintf("https://%s:%s", getMachineName(), httpsPort)
 
@@ -53,11 +54,11 @@ func serve(port int) {
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Printf("serve failed for port %d: %v\n%s", port, err, string(out))
-		return
+		return fmt.Errorf("serve failed for port %d: %w\n%s", port, err, out)
 	}
 
 	addActiveURL(url)
+	return nil
 }
 
 var (
@@ -85,6 +86,8 @@ func writeState() {
 	if len(activeURLs) > 0 {
 		last := activeURLs[len(activeURLs)-1]
 		_ = os.WriteFile(filepath.Join(dir, "last"), []byte(last+"\n"), 0644)
+	} else {
+		_ = os.Remove(filepath.Join(dir, "last"))
 	}
 }
 
@@ -131,7 +134,7 @@ func LastURL() (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-func unserve(port int) {
+func unserve(port int) error {
 	httpsPort := fmt.Sprintf("%d", port)
 
 	log.Printf("unserve https://%s:%s", getMachineName(), httpsPort)
@@ -144,8 +147,9 @@ func unserve(port int) {
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Printf("unserve failed for port %d: %v\n%s", port, err, string(out))
+		return fmt.Errorf("unserve failed for port %d: %w\n%s", port, err, out)
 	}
 
 	removeActiveURL(port)
+	return nil
 }

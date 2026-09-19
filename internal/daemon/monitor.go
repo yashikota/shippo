@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -29,14 +30,13 @@ type Event struct {
 
 func (e *Event) IsLocalhost() bool {
 	if e.Family == 2 { // AF_INET
-		// skc_rcv_saddr is in network byte order (big-endian)
-		// 127.0.0.1 = 0x7f000001 in big-endian
-		return e.Addr[0] == 0x0100007f || e.Addr[0] == 0x7f000001
+		// The BPF object and ring buffer decoder both use little endian.
+		return e.Addr[0] == 0x0100007f
 	}
 	if e.Family == 10 { // AF_INET6
-		// ::1, accepting both host-order and raw network-order words.
+		// ::1 as four little-endian words of network address bytes.
 		return e.Addr[0] == 0 && e.Addr[1] == 0 && e.Addr[2] == 0 &&
-			(e.Addr[3] == 1 || e.Addr[3] == 0x01000000)
+			e.Addr[3] == 0x01000000
 	}
 	return false
 }
@@ -58,10 +58,12 @@ func (e *Event) AddrString() string {
 }
 
 type Monitor struct {
-	objs    *shippobpf.ShippoObjects
-	links   []link.Link
-	reader  *ringbuf.Reader
-	eventCh chan Event
+	objs      *shippobpf.ShippoObjects
+	links     []link.Link
+	reader    *ringbuf.Reader
+	eventCh   chan Event
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 func NewMonitor() (*Monitor, error) {
@@ -95,6 +97,7 @@ func NewMonitor() (*Monitor, error) {
 		links:   links,
 		reader:  reader,
 		eventCh: make(chan Event, 64),
+		done:    make(chan struct{}),
 	}, nil
 }
 
@@ -134,14 +137,21 @@ func (m *Monitor) Run() {
 		ev.Addr[2] = binary.LittleEndian.Uint32(record.RawSample[12:16])
 		ev.Addr[3] = binary.LittleEndian.Uint32(record.RawSample[16:20])
 
-		m.eventCh <- ev
+		select {
+		case m.eventCh <- ev:
+		case <-m.done:
+			return
+		}
 	}
 }
 
 func (m *Monitor) Close() {
-	m.reader.Close()
-	for _, l := range m.links {
-		l.Close()
-	}
-	m.objs.Close()
+	m.closeOnce.Do(func() {
+		close(m.done)
+		m.reader.Close()
+		for _, l := range m.links {
+			l.Close()
+		}
+		m.objs.Close()
+	})
 }
