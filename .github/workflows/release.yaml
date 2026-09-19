@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: "Version bump type"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    if: >-
+      github.event_name == 'push' ||
+      github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup svu
+        if: github.event_name == 'workflow_dispatch'
+        uses: freerangebytes/setup-svu@3dcc2ead4b6be1287f9bfe2ac4764a826c110a4f # v0.2.1
+
+      - name: Create release tag
+        if: github.event_name == 'workflow_dispatch'
+        id: tag
+        shell: bash
+        env:
+          BUMP_TYPE: ${{ inputs.bump_type }}
+        run: |
+          set -euo pipefail
+
+          version="$(svu "$BUMP_TYPE")"
+
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag "$version"
+          git push origin "$version"
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Created release tag: $version"
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: >-
+            ${{ github.event_name == 'workflow_dispatch'
+                && steps.tag.outputs.version
+                || github.ref_name }}
