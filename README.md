@@ -20,12 +20,12 @@ A daemon that automatically exposes localhost LISTEN ports via `tailscale serve`
 
 - **No polling.** Pure event-driven using an eBPF tracepoint.
 - **Only allowed ports** are exposed. No accidental DB or admin service leaks.
-- Ports are served at `https://<machine>.<tailnet>/p<PORT>`.
+- Ports are served at `https://<machine>.<tailnet>:<PORT>`.
 
 ## Requirements
 
 - Linux kernel 5.8+
-- Go 1.21+
+- Go 1.26.3+
 - clang/llvm and libbpf headers (for eBPF compilation)
 - Tailscale installed and authenticated
 
@@ -73,13 +73,13 @@ SHIPPO_PORTS=3000,5173,8000 ./shippo
 
 ```json
 {
-  "ports": [3000, 5173, 8000]
+  "ports": ["3000", "5173", "8000"]
 }
 ```
 
 ### 3. Default
 
-If neither is set, defaults to `3000, 5173, 8000`.
+If neither is set, no ports are allowed. Use `shippo add 3000` to allow a port.
 
 ## Capabilities
 
@@ -92,3 +92,10 @@ eBPF tracepoints require elevated privileges. The systemd service uses `AmbientC
 ## License
 
 MIT
+
+## Tests
+
+Run `aqua i`, then `task check`, `task lint`, and `task test`.
+The integration suite runs real eBPF and shippo in Docker; Tailscale commands
+are replaced by a test double. See [test/README.md](test/README.md) for requirements,
+coverage, and the separate real-Tailnet verification procedure.

@@ -1,0 +1,6 @@
+**
+!.test-bin/
+!.test-bin/shippo
+!.test-bin/daemon.test
+!test/
+!test/integration.Dockerfile

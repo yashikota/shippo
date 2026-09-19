@@ -1,5 +1,7 @@
 # build output
 shippo
+.test-bin/
+coverage.out
 
 # gobee generated files
 internal/daemon/bpf/shippo_bindings.go
