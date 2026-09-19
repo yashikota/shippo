@@ -9,17 +9,19 @@ eBPF を使ってイベント駆動で localhost の LISTEN ポートを検出�
 
 ## インストール
 
-[GitHub Releases](https://github.com/yashikota/shippo/releases) からダウンロード  
+[GitHub Releases](https://github.com/yashikota/shippo/releases) から、自分の CPU に合ったアーカイブ（`linux_amd64` または `linux_arm64`）をダウンロードする。
 
 ```bash
-mkdir -p ~/bin ~/.config/systemd/user
 tar xzf shippo_*_linux_amd64.tar.gz
+mkdir -p ~/bin ~/.config/systemd/user
 mv shippo ~/bin/
 cp shippo.service ~/.config/systemd/user/
 sudo setcap cap_bpf,cap_net_admin,cap_sys_ptrace,cap_perfmon=ep ~/bin/shippo
 ```
 
 ## セットアップ
+
+バイナリを置いたら、次を上から順に実行する。
 
 ```bash
 shippo init
@@ -28,39 +30,48 @@ systemctl --user daemon-reload
 systemctl --user enable --now shippo.service
 ```
 
-ソースから入れた場合は `task enable` で `task install` と上記 systemd 有効化までまとめて実行できる  
+`shippo init` で公開を許可するポートを選ぶ。root 権限は不要。
+`*` を指定すると localhost の全ポートを許可する。最後に `y` で保存する。
+
+動作確認:
+
+```bash
+shippo status
+tailscale serve status
+```
+
+localhost で許可したポートのサーバーを起動すると、`https://<マシン名>.<tailnet>:<PORT>` で Tailnet 内からアクセスできる。
 
 ## 仕組み
 
 ```txt
 ┌─────────────────────────────────────────────────┐
 │  eBPF tracepoint: sock/inet_sock_set_state      │
-│  → LISTEN 開始・終了を ring buffer で即時通知      │
+│  → LISTEN 開始・終了を ring buffer で即時通知   │
 └──────────────────┬──────────────────────────────┘
                    │
                    ▼
 ┌─────────────────────────────────────────────────┐
-│  shippo デーモン                              　　│
-│  - LISTEN 開始 → tailscale serve --https=PORT  　│
-│  - LISTEN 終了 → tailscale serve off           　│
+│  shippo デーモン                              　│
+│  - LISTEN 開始 → tailscale serve --https=PORT 　│
+│  - LISTEN 終了 → tailscale serve off          　│
 └─────────────────────────────────────────────────┘
 ```
 
-- ポーリングなし。eBPF tracepointによるイベント駆動
+- ポーリングなし。eBPF tracepoint によるイベント駆動
 - 許可リストにあるポートだけ公開
-- URL は `https://<マシン名>.<tailnet>:<PORT>` で公開
+- URL は `https://<マシン名>.<tailnet>:<PORT>`
 
 ## 使い方
 
 ### コマンド
 
 ```bash
-shippo init             # 初期設定を対話的に設定
+shippo init             # 許可ポートを対話的に設定
 shippo status           # 待受ポートと許可リストを表示
-shippo add 4000         # 指定ポートを許可リストに追加
-shippo remove 4000      # 指定ポートを許可リストから削除
-shippo daemon           # フォアグラウンド実行（setcap または root が必要）
-shippo once             # 1 回だけ同期して終了
+shippo add 4000         # 許可リストに追加
+shippo remove 4000      # 許可リストから削除
+shippo daemon           # フォアグラウンド実行（通常は systemd を使う）
 ```
 
 ### サービス管理
@@ -71,36 +82,18 @@ journalctl --user -u shippo.service -f
 systemctl --user disable --now shippo.service
 ```
 
-許可ポートは以下の優先順位で決定される。
+## 設定
 
-### 1. 環境変数
+許可ポートは次の優先順位で決まる。
 
-```bash
-SHIPPO_PORTS=3000,5173,8000-8999 shippo daemon
-SHIPPO_PORTS='*' shippo daemon
-```
-
-### 2. 設定ファイル
-
-デフォルトパス: `~/.config/shippo/config.json`
+1. 環境変数 `SHIPPO_PORTS`（例: `SHIPPO_PORTS=3000,8000-8999 shippo daemon`）
+2. 設定ファイル `~/.config/shippo/config.json`
 
 ```json
 {
   "ports": ["3000", "5173", "8000-8999"]
 }
 ```
-
-### 3. デフォルト
-
-どちらも未設定の場合、許可ポートなし（`shippo add` で追加する）。
-
-### ポート指定形式
-
-| 形式 | 例 | 説明 |
-|------|-----|------|
-| 単一ポート | `3000` | 指定したポートのみ |
-| レンジ | `8000-8999` | 範囲内の全ポート |
-| ワイルドカード | `*` | localhost の全ポート |
 
 ## 権限
 
@@ -120,8 +113,10 @@ sudo apt install clang llvm libbpf-dev
 git clone https://github.com/yashikota/shippo.git
 cd shippo
 aqua i
-task install
+task enable
 task check
 task lint
 task test
 ```
+
+詳細は [TEST.md](TEST.md) を参照。
