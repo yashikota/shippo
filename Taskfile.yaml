@@ -24,7 +24,7 @@ tasks:
       - golangci-lint run
       - golangci-lint fmt --diff
   test:
-    desc: Run unit and real-kernel integration tests (requires Docker)
+    desc: Run unit and real-kernel integration tests (requires sudo)
     cmds:
       - task: test:unit
       - task: test:integration
@@ -41,11 +41,11 @@ tasks:
       - go build -race -o .test-bin/shippo .
       - go test -race -tags=integration -c -o .test-bin/daemon.test ./internal/daemon
   test:integration:
-    desc: Test real eBPF and daemon lifecycle in an isolated privileged Docker container
+    desc: Test real eBPF and daemon lifecycle in an isolated network namespace
     deps: [test:integration:build]
     cmds:
-      - docker build -f test/integration.Dockerfile -t shippo-integration .
       - >-
-        docker run --rm --privileged --network none
-        --mount type=bind,source=/sys/kernel/tracing,target=/sys/kernel/tracing,readonly
-        shippo-integration
+        sudo -n unshare --net sh -eu -c 'ip link set lo up; exec "$@"' sh
+        env SHIPPO_TEST_BINARY="{{.ROOT_DIR}}/.test-bin/shippo"
+        "{{.ROOT_DIR}}/.test-bin/daemon.test"
+        -test.run=^TestIntegration -test.v -test.timeout=90s

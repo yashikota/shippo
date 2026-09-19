@@ -1,7 +1,7 @@
 # Testing shippo
 
 Install Go (the version in `go.mod` or newer), clang, LLVM, libbpf headers,
-Docker, and [aqua](https://aquaproj.github.io/docs/install). Then:
+iproute2, util-linux, and [aqua](https://aquaproj.github.io/docs/install). Then:
 
 ```sh
 aqua i
@@ -15,7 +15,7 @@ failure recovery, command arguments, and URL state tests with Go's race detector
 It needs no root privileges or Tailscale account.
 
 `task test:integration` builds the real gobee BPF objects and race-enabled daemon
-and test binaries, then runs them in a disposable Ubuntu container. It checks:
+and test binaries, then runs them directly on the Linux host in a new network namespace. It checks:
 
 - BPF verifier acceptance and attachment to `sock/inet_sock_set_state`.
 - Actual TCP LISTEN start/stop events on IPv4 and IPv6, including address and
@@ -24,11 +24,11 @@ and test binaries, then runs them in a disposable Ubuntu container. It checks:
 - Daemon startup with an existing listener, live start/stop detection, denied
   ports, atomic config replacement, an empty allowlist, and SIGTERM cleanup.
 
-Docker uses `--privileged` and a read-only mount of `/sys/kernel/tracing` because
-the tests load and attach BPF programs. It uses `--network none`, its own network
-namespace, and temporary configuration/state files. It does not mount the host's
-Tailscale socket, home directory, or configuration. Run it on a Linux host or VM
-where tracefs is mounted. Missing BPF permissions or tracepoints fail the test;
+The integration task requires passwordless `sudo` to run `unshare --net` and load
+BPF programs. Only the loopback interface is enabled in that namespace; config
+and state use temporary directories. The recording Tailscale CLI never contacts
+the host's Tailscale daemon. Run it on a Linux host or VM where tracefs is mounted.
+GitHub-hosted Ubuntu VMs provide the required sudo access. Missing BPF permissions or tracepoints fail the test;
 they are never treated as a successful skip.
 
 The kernel is real, but the `tailscale` executable is a test double that records
@@ -37,8 +37,8 @@ Tailscale authentication, certificate issuance, or HTTPS connectivity from a pee
 Those require a separate real Tailnet test with HTTPS enabled and CI credentials.
 Headscale currently cannot replace that HTTPS certificate flow.
 
-CI runs these same commands on GitHub-hosted Ubuntu 22.04 and 24.04 VMs, whose
-kernels are shared by their test containers. This tests the kernels supplied by
+CI runs these same commands directly on GitHub-hosted Ubuntu 22.04 and 24.04 VMs.
+Each job logs its actual kernel and compiler versions. This tests the kernels supplied by
 those runners, not every kernel supported by shippo. Both amd64 and arm64 binaries
 are compiled; runtime integration currently runs on amd64.
 

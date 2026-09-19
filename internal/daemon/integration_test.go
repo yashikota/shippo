@@ -19,9 +19,9 @@ import (
 func TestIntegrationMonitor(t *testing.T) {
 	kernel, err := exec.Command("uname", "-srvm").CombinedOutput()
 	if err != nil {
-		t.Fatalf("read container kernel version: %v", err)
+		t.Fatalf("read kernel version: %v", err)
 	}
-	t.Logf("shared host kernel: %s", kernel)
+	t.Logf("test kernel: %s", kernel)
 	m, err := NewMonitor()
 	if err != nil {
 		t.Fatalf("load and attach actual BPF program: %+v", err)

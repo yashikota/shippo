@@ -162,5 +162,5 @@ eBPF tracepoint には特権が必要。systemd service では `AmbientCapabilit
 ## テスト
 
 `aqua i` の後、`task check`、`task lint`、`task test` で CI と同じ検証を実行する。
-統合テストは Docker 内で実際の eBPF と shippo を動かし、Tailscale コマンドだけをテスト用に置き換える。
+統合テストは Linux のネットワーク名前空間を分けて実際の eBPF と shippo を動かし、Tailscale コマンドだけをテスト用に置き換える。
 必要な権限、検証範囲、実 Tailnet での接続確認は [test/README.md](test/README.md) を参照。

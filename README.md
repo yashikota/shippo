@@ -96,6 +96,6 @@ MIT
 ## Tests
 
 Run `aqua i`, then `task check`, `task lint`, and `task test`.
-The integration suite runs real eBPF and shippo in Docker; Tailscale commands
+The integration suite runs real eBPF and shippo in an isolated Linux network namespace; Tailscale commands
 are replaced by a test double. See [test/README.md](test/README.md) for requirements,
 coverage, and the separate real-Tailnet verification procedure.

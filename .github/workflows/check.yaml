@@ -35,7 +35,7 @@ jobs:
       - name: Install BPF compiler and headers
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang llvm libbpf-dev
+          sudo apt-get install -y clang llvm libbpf-dev iproute2 util-linux
       - name: Record kernel and compiler versions
         run: |
           uname -srvm
