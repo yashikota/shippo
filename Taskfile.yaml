@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  PREFIX: '{{.HOME}}/bin'
+  PREFIX: /usr/local/bin
   SERVICE: '{{.HOME}}/.config/systemd/user/shippo.service'
   BPF_DIR: internal/daemon/bpf
   BPF_SRC_DIR: '{{.BPF_DIR}}/src'
@@ -71,8 +71,7 @@ tasks:
     desc: Build and install shippo and its user service
     deps: [build]
     cmds:
-      - mkdir -p {{.PREFIX}}
-      - cp shippo {{.PREFIX}}/shippo
+      - sudo install -m 755 shippo {{.PREFIX}}/shippo
       - '{{.SETCAP}} {{.SHIPPO_CAPS}} {{.PREFIX}}/shippo'
       - mkdir -p {{.HOME}}/.config/systemd/user
       - cp shippo.service {{.SERVICE}}

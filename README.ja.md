@@ -9,19 +9,25 @@ eBPF を使ってイベント駆動で localhost の LISTEN ポートを検出�
 
 ## インストール
 
-[GitHub Releases](https://github.com/yashikota/shippo/releases) から、自分の CPU に合ったアーカイブ（`linux_amd64` または `linux_arm64`）をダウンロードする。
-
 ```bash
-tar xzf shippo_*_linux_amd64.tar.gz
-mkdir -p ~/bin ~/.config/systemd/user
-mv shippo ~/bin/
+case "$(uname -m)" in
+  x86_64) ARCH=amd64 ;;
+  aarch64|arm64) ARCH=arm64 ;;
+  *) echo "unsupported: $(uname -m)" >&2; exit 1 ;;
+esac
+VERSION=$(
+  curl -fsSL https://api.github.com/repos/yashikota/shippo/releases/latest \
+    | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p'
+)
+curl -fsSL "https://github.com/yashikota/shippo/releases/download/${VERSION}/shippo_${VERSION}_linux_${ARCH}.tar.gz" \
+  | tar xz
+sudo install -m 755 shippo /usr/local/bin/shippo
+sudo setcap cap_bpf,cap_net_admin,cap_sys_ptrace,cap_perfmon=ep /usr/local/bin/shippo
+mkdir -p ~/.config/systemd/user
 cp shippo.service ~/.config/systemd/user/
-sudo setcap cap_bpf,cap_net_admin,cap_sys_ptrace,cap_perfmon=ep ~/bin/shippo
 ```
 
 ## セットアップ
-
-バイナリを置いたら、次を上から順に実行する。
 
 ```bash
 shippo init

@@ -2,7 +2,7 @@
 Description=shippo - auto serve localhost ports via Tailscale
 
 [Service]
-ExecStart=%h/bin/shippo
+ExecStart=/usr/local/bin/shippo
 Restart=always
 RestartSec=2
 
