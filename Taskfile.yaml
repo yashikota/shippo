@@ -1,0 +1,51 @@
+version: '3'
+
+tasks:
+  default:
+    cmds: [task --list]
+  generate:
+    desc: Generate and compile the gobee BPF programs
+    cmds: [make generate]
+  build:
+    desc: Build shippo
+    cmds: [make build]
+  check:
+    desc: Check Go formatting, vet, and compilation for both supported architectures
+    deps: [generate]
+    cmds:
+      - test -z "$(gofmt -l $(git ls-files '*.go') internal/daemon/*_test.go)"
+      - go vet ./...
+      - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /dev/null .
+      - GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null .
+  lint:
+    desc: Run Go lint and format checks
+    deps: [generate]
+    cmds:
+      - golangci-lint run
+      - golangci-lint fmt --diff
+  test:
+    desc: Run unit and real-kernel integration tests (requires sudo)
+    cmds:
+      - task: test:unit
+      - task: test:integration
+  test:unit:
+    desc: Run unit tests with the race detector
+    deps: [generate]
+    cmds:
+      - richgo test -count=1 -shuffle=on -race -coverprofile=coverage.out ./...
+  test:integration:build:
+    internal: true
+    deps: [generate]
+    cmds:
+      - mkdir -p .test-bin
+      - go build -race -o .test-bin/shippo .
+      - go test -race -tags=integration -c -o .test-bin/daemon.test ./internal/daemon
+  test:integration:
+    desc: Test real eBPF and daemon lifecycle in an isolated network namespace
+    deps: [test:integration:build]
+    cmds:
+      - >-
+        sudo -n unshare --net sh -eu -c 'ip link set lo up; exec "$@"' sh
+        env SHIPPO_TEST_BINARY="{{.ROOT_DIR}}/.test-bin/shippo"
+        "{{.ROOT_DIR}}/.test-bin/daemon.test"
+        -test.run=^TestIntegration -test.v -test.timeout=90s

@@ -6,11 +6,8 @@ A daemon that automatically exposes localhost LISTEN ports via `tailscale serve`
 
 ```txt
 ┌─────────────────────────────────────────────┐
-│  eBPF kprobe: inet_listen                   │
-│  → Detects LISTEN start via ring buffer     │
-├─────────────────────────────────────────────┤
-│  eBPF kprobe: tcp_set_state                 │
-│  → Detects LISTEN stop via ring buffer      │
+│  eBPF tracepoint: sock/inet_sock_set_state  │
+│  → Detects LISTEN start/stop via ring buffer│
 └──────────────────┬──────────────────────────┘
                    │
                    ▼
@@ -21,23 +18,25 @@ A daemon that automatically exposes localhost LISTEN ports via `tailscale serve`
 └─────────────────────────────────────────────┘
 ```
 
-- **No polling.** Pure event-driven using eBPF kprobes.
+- **No polling.** Pure event-driven using an eBPF tracepoint.
 - **Only allowed ports** are exposed. No accidental DB or admin service leaks.
-- Ports are served at `https://<machine>.<tailnet>/p<PORT>`.
+- Ports are served at `https://<machine>.<tailnet>:<PORT>`.
 
 ## Requirements
 
 - Linux kernel 5.8+
-- Go 1.21+
-- clang/llvm (for eBPF compilation)
+- Go 1.26.3+
+- clang/llvm and libbpf headers (for eBPF compilation)
 - Tailscale installed and authenticated
 
 ## Build
 
 ```bash
-sudo apt install clang llvm  # if not already installed
+sudo apt install clang llvm libbpf-dev  # if not already installed
 make build
 ```
+
+`make build` runs `gobee` to translate the eBPF Go source before compiling the BPF object.
 
 ## Usage
 
@@ -74,23 +73,29 @@ SHIPPO_PORTS=3000,5173,8000 ./shippo
 
 ```json
 {
-  "ports": [3000, 5173, 8000]
+  "ports": ["3000", "5173", "8000"]
 }
 ```
 
 ### 3. Default
 
-If neither is set, defaults to `3000, 5173, 8000`.
+If neither is set, no ports are allowed. Use `shippo add 3000` to allow a port.
 
 ## Capabilities
 
-eBPF kprobes require elevated privileges. The systemd service uses `AmbientCapabilities`:
+eBPF tracepoints require elevated privileges. The systemd service uses `AmbientCapabilities`:
 
 - `CAP_BPF` – load BPF programs
 - `CAP_PERFMON` – use ring buffer
 - `CAP_NET_ADMIN` – network BPF operations
-- `CAP_SYS_PTRACE` – attach kprobes
 
 ## License
 
 MIT
+
+## Tests
+
+Run `aqua i`, then `task check`, `task lint`, and `task test`.
+The integration suite runs real eBPF and shippo in an isolated Linux network namespace; Tailscale commands
+are replaced by a test double. See [test/README.md](test/README.md) for requirements,
+coverage, and the separate real-Tailnet verification procedure.

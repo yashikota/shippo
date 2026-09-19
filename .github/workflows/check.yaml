@@ -1,0 +1,54 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e # v4.0.5
+        with:
+          aqua_version: v2.60.1
+      - name: Install BPF compiler and headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev iproute2 util-linux
+      - name: Record kernel and compiler versions
+        run: |
+          uname -srvm
+          clang --version
+          go version
+      - name: Check and build
+        run: |
+          task check
+          task lint
+          task build
+      - name: Unit and real-kernel integration tests
+        run: task test
+      - name: Verify clean source tree
+        run: |
+          git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"

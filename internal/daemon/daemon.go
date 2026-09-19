@@ -1,9 +1,11 @@
 package daemon
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
@@ -24,11 +26,23 @@ func Run() error {
 	reconciler := NewReconciler(config)
 	reconciler.InitialSync()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	var watcher sync.WaitGroup
+	watcher.Add(1)
 	go monitor.Run()
-	go watchConfig(config, reconciler)
+	go func() {
+		defer watcher.Done()
+		watchConfig(ctx, config, reconciler)
+	}()
+	defer func() {
+		cancel()
+		watcher.Wait()
+		reconciler.Shutdown()
+	}()
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sig)
 
 	for {
 		select {
@@ -39,7 +53,6 @@ func Run() error {
 			reconciler.HandleEvent(ev)
 		case s := <-sig:
 			log.Printf("received %s, shutting down", s)
-			reconciler.Shutdown()
 			return nil
 		}
 	}

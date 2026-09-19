@@ -7,57 +7,57 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type Reconciler struct {
-	config *Config
-	served map[int]bool
+	mu           sync.Mutex
+	config       *Config
+	served       map[int]bool
+	currentPorts func() map[int]bool
 }
 
 func NewReconciler(config *Config) *Reconciler {
 	return &Reconciler{
-		config: config,
-		served: map[int]bool{},
+		config:       config,
+		served:       map[int]bool{},
+		currentPorts: detectCurrentPorts,
 	}
 }
 
 // InitialSync reads current LISTEN ports from /proc/net/tcp{,6} and serves allowed ones.
 func (r *Reconciler) InitialSync() {
-	ports := detectCurrentPorts()
-	for port := range ports {
-		if r.config.IsAllowed(port) {
-			serve(port)
-			r.served[port] = true
-		}
-	}
+	r.Reconcile()
 }
 
 // Reconcile re-evaluates all served ports against the current config.
 // Serves new allowed ports and unserves ports no longer allowed.
 func (r *Reconciler) Reconcile() {
-	current := detectCurrentPorts()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current := r.currentPorts()
 
 	// Serve new ports that are now allowed
 	for port := range current {
 		if r.config.IsAllowed(port) && !r.served[port] {
 			log.Printf("config change: serving port %d", port)
-			serve(port)
-			r.served[port] = true
+			r.serve(port)
 		}
 	}
 
 	// Unserve ports that are no longer allowed
 	for port := range r.served {
-		if !r.config.IsAllowed(port) {
+		if !r.config.IsAllowed(port) || !current[port] {
 			log.Printf("config change: unserving port %d", port)
-			unserve(port)
-			delete(r.served, port)
+			r.unserve(port)
 		}
 	}
 }
 
 // HandleEvent processes an eBPF event.
 func (r *Reconciler) HandleEvent(ev Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if Verbose {
 		log.Printf("event: action=%d family=%d port=%d addr=[%08x %08x %08x %08x] localhost=%v",
 			ev.Action, ev.Family, ev.Port, ev.Addr[0], ev.Addr[1], ev.Addr[2], ev.Addr[3], ev.IsLocalhost())
@@ -73,23 +73,41 @@ func (r *Reconciler) HandleEvent(ev Event) {
 	case ActionListenStart:
 		if r.config.IsAllowed(port) && !r.served[port] {
 			log.Printf("listen detected: port %d (%s)", port, ev.AddrString())
-			serve(port)
-			r.served[port] = true
+			r.serve(port)
 		}
 	case ActionListenStop:
-		if r.served[port] {
+		// Another listener (for example IPv6 on the same port) may remain.
+		if r.served[port] && !r.currentPorts()[port] {
 			log.Printf("listen stopped: port %d (%s)", port, ev.AddrString())
-			unserve(port)
-			delete(r.served, port)
+			r.unserve(port)
 		}
 	}
 }
 
 // Shutdown unserves all currently served ports.
 func (r *Reconciler) Shutdown() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for port := range r.served {
-		unserve(port)
+		r.unserve(port)
 	}
+}
+
+// Keep failed operations pending so the next event or reconciliation can retry.
+func (r *Reconciler) serve(port int) {
+	if err := serve(port); err != nil {
+		log.Print(err)
+		return
+	}
+	r.served[port] = true
+}
+
+func (r *Reconciler) unserve(port int) {
+	if err := unserve(port); err != nil {
+		log.Print(err)
+		return
+	}
+	delete(r.served, port)
 }
 
 func detectCurrentPorts() map[int]bool {
