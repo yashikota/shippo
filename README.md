@@ -38,9 +38,34 @@ make build
 
 `make build` runs `gobee` to translate the eBPF Go source before compiling the BPF object.
 
+## Install and initialize
+
+```bash
+aqua i
+task install
+~/bin/shippo init
+sudo ~/bin/shippo
+```
+
+The default installation directory is `~/bin`. If it is on your `PATH`, use
+`shippo init`. Initialization requires no root privileges. It lists currently
+listening localhost ports, lets you select candidate numbers, and accepts other
+ports or ranges. Enter `*` at either selection prompt to allow all localhost
+ports, including servers started later. Nothing is preselected. Review the allowlist and answer `y` to
+save it; Enter at the confirmation prompt cancels without changing the config.
+Use `shippo --config <path> init` to choose another config location. Running init
+again replaces the allowlist only after confirmation. Unset `SHIPPO_PORTS` first
+if it is set, because that environment variable overrides the saved config.
+
+Starting the daemon requires root or BPF capabilities; initializing its config
+does not start it or change Tailscale permissions.
+
 ## Usage
 
 ```bash
+# Choose the allowlist before starting the daemon
+./shippo init
+
 # Run directly (requires root or capabilities)
 sudo ./shippo
 

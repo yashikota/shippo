@@ -9,6 +9,9 @@ tasks:
   build:
     desc: Build shippo
     cmds: [make build]
+  install:
+    desc: Build and install shippo and its user service
+    cmds: [make install]
   check:
     desc: Check Go formatting, vet, and compilation for both supported architectures
     deps: [generate]

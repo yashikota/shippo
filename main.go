@@ -53,7 +53,14 @@ func getVCSBuildVersion(info *debug.BuildInfo) (string, bool) {
 }
 
 func main() {
-	app := &cli.Command{
+	if err := newCommand().Run(context.Background(), os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func newCommand() *cli.Command {
+	return &cli.Command{
 		Name:    "shippo",
 		Usage:   "Auto serve localhost ports via Tailscale using eBPF",
 		Version: getVersion(),
@@ -78,6 +85,11 @@ func main() {
 			},
 		},
 		Commands: []*cli.Command{
+			{
+				Name:   "init",
+				Usage:  "Interactively choose ports to allow and save the configuration",
+				Action: initAction,
+			},
 			{
 				Name:   "daemon",
 				Usage:  "Run as daemon (default when no subcommand)",
@@ -129,10 +141,11 @@ func main() {
 		DefaultCommand: "daemon",
 	}
 
-	if err := app.Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+}
+
+func initAction(ctx context.Context, cmd *cli.Command) error {
+	applyGlobalFlags(cmd)
+	return daemon.Init(cmd.Root().Reader, cmd.Root().Writer)
 }
 
 func setupLogging(logPath string) {
