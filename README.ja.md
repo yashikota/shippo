@@ -35,6 +35,7 @@ eBPF を使ってイベント駆動で localhost の LISTEN ポートを検出�
 ```bash
 sudo apt install clang llvm libbpf-dev   # 未インストールの場合
 make build
+make install                  # setcap のため sudo が必要
 ```
 
 `make build` は `gobee` で eBPF Go source を変換してから BPF object をコンパイルする。
@@ -168,7 +169,6 @@ SHIPPO_PORTS='*' sudo ./shippo  # 全ポート許可
 │   ├── reconcile.go             # serve/unserve 判定
 │   ├── serve.go                 # tailscale コマンド実行
 │   └── bpf/src/shippo.go        # gobee eBPF Go コード
-├── testserver/                  # テスト用 localhost サーバー
 ├── Makefile
 └── shippo.service               # systemd user service
 ```
@@ -185,4 +185,4 @@ eBPF tracepoint には特権が必要。systemd service では `AmbientCapabilit
 
 `aqua i` の後、`task check`、`task lint`、`task test` で CI と同じ検証を実行する。
 統合テストは Linux のネットワーク名前空間を分けて実際の eBPF と shippo を動かし、Tailscale コマンドだけをテスト用に置き換える。
-必要な権限、検証範囲、実 Tailnet での接続確認は [test/README.md](test/README.md) を参照。
+必要な権限、検証範囲、実 Tailnet での接続確認は [TEST.md](TEST.md) を参照。

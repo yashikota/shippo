@@ -11,6 +11,8 @@ LLVM_STRIP ?= $(or $(shell command -v llvm-strip 2>/dev/null),$(shell command -v
 BPF_DIR := internal/daemon/bpf
 BPF_SRC_DIR := $(BPF_DIR)/src
 BPF_OBJECTS := $(BPF_DIR)/bin/x86/shippo.bpf.o $(BPF_DIR)/bin/arm64/shippo.bpf.o
+SETCAP ?= sudo setcap
+SHIPPO_CAPS := cap_bpf,cap_net_admin,cap_sys_ptrace,cap_perfmon=ep
 
 export BPF_CFLAGS ?= -Wall -Werror -O2 -g -target bpfel -I$(MULTIARCH_INCLUDE) -I$(LIBBPF_INCLUDE)
 
@@ -43,6 +45,7 @@ build: generate
 install: build
 	mkdir -p $(PREFIX)
 	cp shippo $(PREFIX)/shippo
+	$(SETCAP) $(SHIPPO_CAPS) $(PREFIX)/shippo
 	mkdir -p $(dir $(SERVICE))
 	cp shippo.service $(SERVICE)
 

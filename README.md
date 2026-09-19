@@ -34,6 +34,7 @@ A daemon that automatically exposes localhost LISTEN ports via `tailscale serve`
 ```bash
 sudo apt install clang llvm libbpf-dev  # if not already installed
 make build
+make install                 # requires sudo for setcap
 ```
 
 `make build` runs `gobee` to translate the eBPF Go source before compiling the BPF object.
@@ -122,5 +123,5 @@ MIT
 
 Run `aqua i`, then `task check`, `task lint`, and `task test`.
 The integration suite runs real eBPF and shippo in an isolated Linux network namespace; Tailscale commands
-are replaced by a test double. See [test/README.md](test/README.md) for requirements,
+are replaced by a test double. See [TEST.md](TEST.md) for requirements,
 coverage, and the separate real-Tailnet verification procedure.

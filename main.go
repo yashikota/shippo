@@ -84,6 +84,9 @@ func newCommand() *cli.Command {
 				Sources: cli.EnvVars("SHIPPO_CONFIG"),
 			},
 		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return cli.ShowAppHelp(cmd)
+		},
 		Commands: []*cli.Command{
 			{
 				Name:   "init",
@@ -92,7 +95,7 @@ func newCommand() *cli.Command {
 			},
 			{
 				Name:   "daemon",
-				Usage:  "Run as daemon (default when no subcommand)",
+				Usage:  "Run as daemon",
 				Action: daemonAction,
 			},
 			{
@@ -138,7 +141,6 @@ func newCommand() *cli.Command {
 				Action: lastAction,
 			},
 		},
-		DefaultCommand: "daemon",
 	}
 
 }

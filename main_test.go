@@ -11,6 +11,22 @@ import (
 	"github.com/yashikota/shippo/internal/daemon"
 )
 
+func TestNoArgsShowsHelp(t *testing.T) {
+	cmd := newCommand()
+	var output bytes.Buffer
+	cmd.Writer = &output
+	if err := cmd.Run(context.Background(), []string{"shippo"}); err != nil {
+		t.Fatal(err)
+	}
+	help := output.String()
+	if !strings.Contains(help, "USAGE:") || !strings.Contains(help, "COMMANDS:") {
+		t.Fatalf("expected help output, got: %s", help)
+	}
+	if strings.Contains(help, "insufficient privileges") {
+		t.Fatalf("help should not require privileges: %s", help)
+	}
+}
+
 func TestInitCommandHonorsConfigFlagWithoutPrivileges(t *testing.T) {
 	old := daemon.ConfigPath
 	t.Cleanup(func() { daemon.ConfigPath = old })
