@@ -39,6 +39,25 @@ make build
 
 `make build` は `gobee` で eBPF Go source を変換してから BPF object をコンパイルする。
 
+## インストールと初期設定
+
+```bash
+aqua i
+task install
+~/bin/shippo init
+sudo ~/bin/shippo
+```
+
+標準のインストール先は `~/bin`。PATH に含まれていれば `shippo init` で実行できる。
+初期設定に root 権限は不要。現在 localhost で待受中のポートを候補として表示し、番号で選択する。
+候補にないポートや範囲も追加できる。初期状態では何も選択しない。
+最後に許可リストを表示し、`y` を入力した場合だけ設定を保存する。確認で Enter を押すと変更せず終了する。
+再実行時も、保存を確認するまで既存設定は変更しない。
+設定先を変更する場合は `shippo --config <path> init` を使う。
+`SHIPPO_PORTS` は設定ファイルより優先されるため、設定されている場合は解除してから実行する。
+
+デーモンの起動には root または BPF の権限が必要。`init` は設定を保存し、デーモンの起動や Tailscale の権限変更は行わない。
+
 ## 使い方
 
 ### デーモンモード
@@ -63,6 +82,9 @@ make disable
 ### CLI コマンド
 
 ```bash
+# 公開を許可するポートを対話的に選んで保存
+./shippo init
+
 # 現在の状態を表示
 ./shippo status
 
