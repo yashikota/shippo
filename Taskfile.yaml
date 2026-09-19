@@ -1,17 +1,113 @@
 version: '3'
 
+vars:
+  PREFIX: '{{.HOME}}/bin'
+  SERVICE: '{{.HOME}}/.config/systemd/user/shippo.service'
+  BPF_DIR: internal/daemon/bpf
+  BPF_SRC_DIR: '{{.BPF_DIR}}/src'
+  SHIPPO_CAPS: cap_bpf,cap_net_admin,cap_sys_ptrace,cap_perfmon=ep
+  LDFLAGS: -s -w
+  SETCAP: sudo setcap
+
 tasks:
   default:
     cmds: [task --list]
+
   generate:
     desc: Generate and compile the gobee BPF programs
-    cmds: [make generate]
+    cmds:
+      - task: generate:translate
+      - task: generate:bpf-objects
+
+  generate:translate:
+    internal: true
+    cmds:
+      - |
+        set -euo pipefail
+        if command -v gobee >/dev/null 2>&1; then
+          gobee translate --bindings-dir ./{{.BPF_DIR}} ./{{.BPF_SRC_DIR}}
+        else
+          go run github.com/boratanrikulu/gobee/cmd/gobee translate \
+            --bindings-dir ./{{.BPF_DIR}} ./{{.BPF_SRC_DIR}}
+        fi
+
+  generate:bpf-objects:
+    internal: true
+    deps: [generate:translate]
+    cmds:
+      - mkdir -p {{.BPF_DIR}}/bin/x86 {{.BPF_DIR}}/bin/arm64
+      - |
+        set -euo pipefail
+        multiarch_include="/usr/include/$(uname -m)-linux-gnu"
+        libbpf_include="$(ls -d "/usr/src/linux-headers-$(uname -r)/tools/bpf/resolve_btfids/libbpf/include" 2>/dev/null || echo /usr/include)"
+        bpf_cflags="-Wall -Werror -O2 -g -target bpfel -I${multiarch_include} -I${libbpf_include}"
+        clang="${CLANG:-clang}"
+        llvm_version="$("$clang" -dumpversion 2>/dev/null | cut -d. -f1)"
+        if command -v llvm-strip >/dev/null 2>&1; then
+          llvm_strip="llvm-strip"
+        elif command -v "llvm-strip-${llvm_version}" >/dev/null 2>&1; then
+          llvm_strip="llvm-strip-${llvm_version}"
+        else
+          llvm_strip="llvm-strip"
+        fi
+
+        "$clang" $bpf_cflags -D__TARGET_ARCH_x86 \
+          -c {{.BPF_SRC_DIR}}/shippo.bpf.c \
+          -o {{.BPF_DIR}}/bin/x86/shippo.bpf.o
+        "$llvm_strip" -g {{.BPF_DIR}}/bin/x86/shippo.bpf.o
+
+        "$clang" $bpf_cflags -D__TARGET_ARCH_arm64 \
+          -c {{.BPF_SRC_DIR}}/shippo.bpf.c \
+          -o {{.BPF_DIR}}/bin/arm64/shippo.bpf.o
+        "$llvm_strip" -g {{.BPF_DIR}}/bin/arm64/shippo.bpf.o
+
   build:
     desc: Build shippo
-    cmds: [make build]
+    deps: [generate]
+    cmds:
+      - CGO_ENABLED=0 go build -ldflags "{{.LDFLAGS}}" -o shippo .
+
   install:
     desc: Build and install shippo and its user service
-    cmds: [make install]
+    deps: [build]
+    cmds:
+      - mkdir -p {{.PREFIX}}
+      - cp shippo {{.PREFIX}}/shippo
+      - '{{.SETCAP}} {{.SHIPPO_CAPS}} {{.PREFIX}}/shippo'
+      - mkdir -p {{.HOME}}/.config/systemd/user
+      - cp shippo.service {{.SERVICE}}
+
+  enable:
+    desc: Install and enable the systemd user service
+    deps: [install]
+    cmds:
+      - systemctl --user daemon-reload
+      - systemctl --user enable --now shippo.service
+
+  disable:
+    desc: Disable the systemd user service
+    cmds:
+      - systemctl --user disable --now shippo.service
+
+  status:
+    desc: Show service and tailscale serve status
+    cmds:
+      - systemctl --user status shippo.service
+      - tailscale serve status
+
+  logs:
+    desc: Follow shippo service logs
+    cmds:
+      - journalctl --user -u shippo.service -f
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -f shippo
+      - rm -f {{.BPF_DIR}}/bin/x86/shippo.bpf.o {{.BPF_DIR}}/bin/arm64/shippo.bpf.o
+      - rm -f {{.BPF_SRC_DIR}}/shippo.bpf.c {{.BPF_SRC_DIR}}/shippo.bpf.c.map
+      - rm -f {{.BPF_DIR}}/shippo_bindings.go
+
   check:
     desc: Check Go formatting, vet, and compilation for both supported architectures
     deps: [generate]
@@ -20,22 +116,26 @@ tasks:
       - go vet ./...
       - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /dev/null .
       - GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null .
+
   lint:
     desc: Run Go lint and format checks
     deps: [generate]
     cmds:
       - golangci-lint run
       - golangci-lint fmt --diff
+
   test:
     desc: Run unit and real-kernel integration tests (requires sudo)
     cmds:
       - task: test:unit
       - task: test:integration
+
   test:unit:
     desc: Run unit tests with the race detector
     deps: [generate]
     cmds:
       - richgo test -count=1 -shuffle=on -race -coverprofile=coverage.out ./...
+
   test:integration:build:
     internal: true
     deps: [generate]
@@ -43,6 +143,7 @@ tasks:
       - mkdir -p .test-bin
       - go build -race -o .test-bin/shippo .
       - go test -race -tags=integration -c -o .test-bin/daemon.test ./internal/daemon
+
   test:integration:
     desc: Test real eBPF and daemon lifecycle in an isolated network namespace
     deps: [test:integration:build]
