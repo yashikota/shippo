@@ -2,7 +2,10 @@ package daemon
 
 import (
 	"fmt"
+	"os"
+	"slices"
 	"strings"
+	"text/tabwriter"
 )
 
 // Rules prints the current port allow rules.
@@ -17,6 +20,7 @@ func Rules() {
 	}
 
 	fmt.Println("Port allow rules:")
+	w := tabwriter.NewWriter(os.Stdout, 0, 8, 1, '\t', 0)
 	for _, r := range raw {
 		matchers, _ := parsePortSpecs(r)
 		desc := ""
@@ -30,8 +34,9 @@ func Rules() {
 				desc = "(range)"
 			}
 		}
-		fmt.Printf("  %s  %s\n", r, desc)
+		fmt.Fprintf(w, "\t%s\t%s\n", r, desc)
 	}
+	_ = w.Flush()
 	fmt.Printf("\nConfig: %s\n", configFilePath())
 }
 
@@ -49,13 +54,20 @@ func Status() {
 	}
 
 	fmt.Println("Listening on localhost:")
+	ordered := make([]int, 0, len(ports))
 	for port := range ports {
-		status := "  (not in allow list)"
-		if config.IsAllowed(port) {
-			status = fmt.Sprintf("  → https://%s:%d", getMachineName(), port)
-		}
-		fmt.Printf("  :%d%s\n", port, status)
+		ordered = append(ordered, port)
 	}
+	slices.Sort(ordered)
+	w := tabwriter.NewWriter(os.Stdout, 0, 8, 1, '\t', 0)
+	for _, port := range ordered {
+		status := "(not in allow list)"
+		if config.IsAllowed(port) {
+			status = fmt.Sprintf("→ https://%s:%d", getMachineName(), port)
+		}
+		fmt.Fprintf(w, "\t:%d\t%s\n", port, status)
+	}
+	_ = w.Flush()
 }
 
 // Add adds port specs to the config file.
